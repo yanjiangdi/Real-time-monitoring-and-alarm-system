@@ -1,0 +1,59 @@
+
+
+
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.Dataset
+
+/**
+  * Created by TAOS on 2017/6/10.
+  * 读取json 文件，直接生成DF
+  */
+object json {
+    case class User(uid: String, xb: String,age:Int,V4:String,V5:String)
+    case class Movie(mid:String,name:String,t:String)
+    case class Rating(uid: String, mid: String,V3:Double,V4:String)
+    case class Brower(V1: String, V2: String,V3:String,V4:String,V5:String,V6:String)
+  def main(args: Array[String]): Unit = {
+    val conf = new SparkConf().setAppName("ReadJSON").setMaster("local").set("spark.executor.memory","50g").set("spark.driver.maxResultSize","50g")
+    val sc = new SparkContext(conf)
+    val sqlContext = new SQLContext(sc)
+    //val root = CreateSchema.getClass.getResource("/")
+   /// val df1 = sqlContext.read.format("json").load("C://pepole.json")
+   // df1.show()
+    import sqlContext.implicits._
+    val UserInfo = sc.textFile("C:\\Users\\BIGDATA\\Desktop\\文件\\BigData\\Spark\\3.SparkCore_2\\data\\data\\users.dat").map(_.split("::")).map(p => User(p(0), p(1),p(2).trim().toInt,p(3),p(4))).toDF()
+    UserInfo.registerTempTable("User")
+    val MovieInfo = sc.textFile("C:\\Users\\BIGDATA\\Desktop\\文件\\BigData\\Spark\\3.SparkCore_2\\data\\data\\movies.dat").map(_.split("::")).map(p => Movie(p(0),p(1),p(2))).toDF()
+    MovieInfo.registerTempTable("Movie")
+    val RatingsInfo = sc.textFile("C:\\Users\\BIGDATA\\Desktop\\文件\\BigData\\Spark\\3.SparkCore_2\\data\\data\\ratings.dat").map(_.split("::")).map(p => Rating(p(0), p(1),p(2).toDouble,p(3))).toDF()
+    RatingsInfo.registerTempTable("Rating")
+     val BrowerInfo = sc.textFile("C:\\Users\\BIGDATA\\Desktop\\文件\\BigData\\Spark\\3.SparkCore_2\\SogouQ2012.mini\\SogouQ.mini").map(_.split("\t")).map(p =>Brower(p(0), p(1),p(2),p(3),p(4),p(5))).toDF()
+    BrowerInfo.registerTempTable("Brower")
+    
+    //年龄段在“18-24”的男性年轻人，最喜欢看哪10部
+    val top10_M_18_24 = sqlContext.sql("select x.n,count(*) as c from ( select distinct Rating.mid as m, Rating.uid as u, Movie.name as n  FROM Rating,User,Movie WHERE User.age>=18 and User.age<=24 and User.xb=\"M\" and User.uid=Rating.uid and Movie.mid=Rating.mid)as x  group by x.n order by c desc  ")
+    top10_M_18_24.show(10)
+    
+     //看过电影最多的前10个人  
+     val  top10_pepole= sqlContext.sql("select uid,count(uid) from Rating group by uid order by count(uid) desc");  
+     top10_pepole.show(10);  
+     
+      //得分最高的10部电影  
+    val top10M_score=sqlContext.sql("select mid,(sum(V3)/count(V3)) as av  from Rating group by mid order by av desc")  
+    top10M_score.show(10)
+    
+    //女性看的最多的10部电影
+    val top10_Female = sqlContext.sql("select x.n,count(*) as c from ( select distinct Rating.mid as m, Rating.uid as u, Movie.name as n  FROM Rating,User,Movie WHERE User.xb=\"F\" and User.uid=Rating.uid and Movie.mid=Rating.mid)as x  group by x.n order by c desc  ")
+    top10_Female.show(10)
+    
+    //男性看的最多的10部电影
+    val top10_Male = sqlContext.sql("select x.n,count(*) as c from ( select distinct Rating.mid as m, Rating.uid as u, Movie.name as n  FROM Rating,User,Movie WHERE User.xb=\"M\" and User.uid=Rating.uid and Movie.mid=Rating.mid)as x  group by x.n order by c desc  ")
+    top10_Male.show(10)
+    
+    //访问量前10的网站
+    val Top10_brower = sqlContext.sql("select V6,count(*) as c from Brower group by V6 order by c desc  ")
+    Top10_brower.show(10)
+    }
+
+}
